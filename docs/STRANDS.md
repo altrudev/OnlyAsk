@@ -34,7 +34,7 @@ StrandsAuthorityHook(
 ).register(agent)
 ```
 
-For mutating tools, the hook is the first execution boundary, not the whole transaction. The tool implementation should invoke `TransitionKernel` so state-drift checks, verification, recovery, scoped-grant consumption, and ledger evidence remain mandatory.
+For mutating tools, the hook is the first execution boundary, not the whole transaction. Mutating policies are denied unless they are explicitly marked `transactional=True`, and such a tool must invoke `TransitionKernel` so state-drift checks, verification, recovery, scoped-grant consumption, and ledger evidence remain mandatory. The flag is an integration assertion, not a substitute for code review.
 
 ## Security rule
 
