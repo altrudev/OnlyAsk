@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "onlyask"
+version = "0.1.0"
+description = "Governed autonomous operations: act inside explicit authority, escalate only genuine human decisions."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [{name = "Altru.dev"}]
+dependencies = []
+
+[project.optional-dependencies]
+strands = ["strands-agents>=1.50.2,<2"]
+dev = ["pytest>=8.2", "ruff>=0.6"]
+
+[project.scripts]
+onlyask = "onlyask.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/onlyask"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
