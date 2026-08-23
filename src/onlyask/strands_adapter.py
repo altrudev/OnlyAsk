@@ -12,6 +12,7 @@ class ToolPolicy:
     resource_from_input: Callable[[dict[str, Any]], str]
     operation: str
     mutating: bool
+    transactional: bool = False
 
 
 class StrandsAuthorityHook:
@@ -40,6 +41,11 @@ class StrandsAuthorityHook:
             if policy is None:
                 event.cancel_tool = f"OnlyAsk denied unregistered tool: {name}"
                 return
+            if policy.mutating and not policy.transactional:
+                event.cancel_tool = (
+                    f"OnlyAsk denied mutating tool without transactional enforcement: {name}"
+                )
+                return
 
             action = Action(
                 resource=policy.resource_from_input(dict(params)),
@@ -47,8 +53,8 @@ class StrandsAuthorityHook:
                 purpose=f"Strands tool invocation: {name}",
                 parameters=dict(params),
                 mutating=policy.mutating,
-                # The hook is the capability boundary. Mutating tools should additionally call
-                # TransitionKernel so verification, recovery, and state-drift checks are enforced.
+                # The hook is the capability boundary. Transactional mutating tools additionally
+                # call TransitionKernel for verification, recovery, and state-drift enforcement.
                 verify=(lambda _: True) if policy.mutating else None,
                 recover=(lambda _: True) if policy.mutating else None,
             )
