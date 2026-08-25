@@ -22,3 +22,9 @@ def test_pwa_auth_uses_bearer_token():
     assert app.authorized("Bearer secret") is True
     assert app.authorized(None, f"oa_session={app.session_cookie}") is True
     assert "secret" not in app.session_cookie
+
+
+def test_uncertain_state_is_visually_flagged():
+    from onlyask.pwa import PAGE
+
+    assert ".uncertain{color:var(--d)}" in PAGE
