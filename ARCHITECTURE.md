@@ -20,9 +20,11 @@ flowchart LR
     R[Recovery / rollback]
     L[(Hash-chained evidence ledger)]
     A[Minimal human ask\nscoped one-time grant]
+    C[Amazon Bedrock AgentCore\nhosted execution]
 
     H --> UI
     UI --> S
+    C --> S
     S --> B
     B -->|allowed| K
     B -->|denied| S
@@ -37,6 +39,9 @@ flowchart LR
     L --> UI
     K --> L
 ```
+
+AgentCore is an execution/runtime boundary, not an authority source. Moving the agent from local execution
+to AWS does not add permissions to the OnlyAsk envelope.
 
 The model is deliberately *not* the source of authority. Prompting can guide behavior; it cannot widen
 the capability surface.
@@ -113,6 +118,20 @@ tools fail closed. Mutating tools must additionally declare `transactional=True`
 
 The reference product intentionally exposes no unrestricted shell, arbitrary filesystem writer, or
 arbitrary network tool.
+
+## Hosted runtime boundary
+
+The competition deployment path packages the same source into Amazon Bedrock AgentCore using a
+CodeZip runtime. The AWS execution role is an infrastructure capability and should be least-privilege.
+OnlyAsk does not infer authority from AWS credentials, deployment success, model access, network reach,
+or the fact that a tool is technically callable.
+
+A hosted tool must still satisfy both boundaries:
+
+1. it is registered inside the Strands capability surface; and
+2. any mutation passes `TransitionKernel` under the current authority envelope.
+
+This prevents deployment privilege from silently becoming task authority.
 
 ## Evidence ledger
 
