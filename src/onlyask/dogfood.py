@@ -52,6 +52,25 @@ class SafeTestRunner:
         env["PYTHONUNBUFFERED"] = "1"
         return env
 
+    @staticmethod
+    def _origin_repo(value: str) -> str | None:
+        remote = value.strip()
+        prefixes = (
+            "https://github.com/",
+            "git@github.com:",
+            "ssh://git@github.com/",
+        )
+        for prefix in prefixes:
+            if remote.startswith(prefix):
+                repo = remote[len(prefix) :]
+                if repo.endswith(".git"):
+                    repo = repo[:-4]
+                parts = repo.split("/")
+                if len(parts) == 2 and all(parts):
+                    return repo
+                return None
+        return None
+
     def _run_fixed(self, command: list[str], root: Path) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             command,
@@ -72,6 +91,32 @@ class SafeTestRunner:
         marker = root / "pyproject.toml"
         if not marker.exists():
             return {"available": False, "ok": False, "message": "Configured runner path is not a Python project."}
+
+        origin = self._run_fixed(["git", "remote", "get-url", "origin"], root)
+        observed_repo = self._origin_repo(origin.stdout) if origin.returncode == 0 else None
+        if observed_repo != project.repo:
+            return {
+                "available": True,
+                "ok": False,
+                "returncode": origin.returncode,
+                "command": "git remote get-url origin",
+                "output": (origin.stdout + origin.stderr)[-self.output_limit :],
+                "tested_sha": "",
+                "message": "Configured checkout origin does not match the governed repository.",
+            }
+
+        status = self._run_fixed(["git", "status", "--porcelain=v1"], root)
+        dirty = status.stdout.strip() if status.returncode == 0 else ""
+        if status.returncode != 0 or dirty:
+            return {
+                "available": True,
+                "ok": False,
+                "returncode": status.returncode,
+                "command": "git status --porcelain=v1",
+                "output": (status.stdout + status.stderr)[-self.output_limit :],
+                "tested_sha": "",
+                "message": "Working tree must be clean before test evidence can authorize a merge.",
+            }
 
         head = self._run_fixed(["git", "rev-parse", "HEAD"], root)
         tested_sha = head.stdout.strip() if head.returncode == 0 else ""
@@ -96,6 +141,8 @@ class SafeTestRunner:
             "command": "python -m pytest -q",
             "output": output,
             "tested_sha": tested_sha,
+            "origin_repo": observed_repo,
+            "working_tree_clean": True,
         }
 
 
@@ -191,6 +238,8 @@ class DogfoodSession:
                     and output.get("available") is True
                     and output.get("ok") is True
                     and bool(output.get("tested_sha"))
+                    and output.get("origin_repo") in {None, repo}
+                    and output.get("working_tree_clean") in {None, True}
                 ),
             )
         )
