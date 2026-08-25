@@ -10,11 +10,12 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
 authors = [{name = "Altru.dev"}]
-dependencies = []
+dependencies = [
+  "bedrock-agentcore>=1.21,<2",
+  "strands-agents>=1.50.2,<2",
+]
 
 [project.optional-dependencies]
-strands = ["strands-agents>=1.50.2,<2"]
-agentcore = ["bedrock-agentcore>=1.21,<2", "strands-agents>=1.50.2,<2"]
 dev = ["pytest>=8.2", "ruff>=0.6"]
 
 [project.scripts]
