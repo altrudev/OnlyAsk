@@ -9,7 +9,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from .github_adapter import GitHubAdapter, PullSnapshot
+from .github_adapter import GitHubAPIError, GitHubAdapter, PullSnapshot
 from .kernel import TransitionKernel
 from .models import Action, AuthorityEnvelope, Grant, Permission, TransitionResult
 
@@ -23,7 +23,7 @@ class DogfoodProject:
 
 
 class SafeTestRunner:
-    """Runs one fixed test command in an explicitly configured trusted project directory."""
+    """Runs fixed inspection/test commands in an explicitly configured trusted project directory."""
 
     _ENV_ALLOWLIST = {
         "PATH",
@@ -52,6 +52,17 @@ class SafeTestRunner:
         env["PYTHONUNBUFFERED"] = "1"
         return env
 
+    def _run_fixed(self, command: list[str], root: Path) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            command,
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=self.timeout_seconds,
+            check=False,
+            env=self.sanitized_environment(),
+        )
+
     def run(self, project: DogfoodProject) -> dict[str, Any]:
         if not project.local_path:
             return {"available": False, "ok": False, "message": "No local runner path configured."}
@@ -61,16 +72,22 @@ class SafeTestRunner:
         marker = root / "pyproject.toml"
         if not marker.exists():
             return {"available": False, "ok": False, "message": "Configured runner path is not a Python project."}
+
+        head = self._run_fixed(["git", "rev-parse", "HEAD"], root)
+        tested_sha = head.stdout.strip() if head.returncode == 0 else ""
+        if not tested_sha:
+            return {
+                "available": True,
+                "ok": False,
+                "returncode": head.returncode,
+                "command": "git rev-parse HEAD",
+                "output": (head.stdout + head.stderr)[-self.output_limit :],
+                "tested_sha": "",
+                "message": "Could not bind the test run to an exact Git commit.",
+            }
+
         command = [sys.executable, "-m", "pytest", "-q"]
-        completed = subprocess.run(
-            command,
-            cwd=root,
-            capture_output=True,
-            text=True,
-            timeout=self.timeout_seconds,
-            check=False,
-            env=self.sanitized_environment(),
-        )
+        completed = self._run_fixed(command, root)
         output = (completed.stdout + completed.stderr)[-self.output_limit :]
         return {
             "available": True,
@@ -78,6 +95,7 @@ class SafeTestRunner:
             "returncode": completed.returncode,
             "command": "python -m pytest -q",
             "output": output,
+            "tested_sha": tested_sha,
         }
 
 
@@ -124,10 +142,13 @@ class DogfoodSession:
         self.kernel = TransitionKernel(self.envelope)
         self.pending: dict[str, PendingDecision] = {}
         self.last_results: list[dict[str, Any]] = []
+        self.last_test_results: dict[str, dict[str, Any]] = {}
 
     @staticmethod
     def _pull_state_token(pull: PullSnapshot) -> str:
         payload = {
+            "repo": pull.repo,
+            "number": pull.number,
             "head_sha": pull.head_sha,
             "base_ref": pull.base_ref,
             "state": pull.state,
@@ -167,6 +188,8 @@ class DogfoodSession:
                 execute=lambda: self.runner.run(project),
             )
         )
+        if result.state.value == "verified" and isinstance(result.output, dict):
+            self.last_test_results[repo] = dict(result.output)
         self._remember("tests", repo, result)
         return result
 
@@ -180,11 +203,18 @@ class DogfoodSession:
         if not pull.head_sha:
             raise ValueError("Pull request head SHA is unavailable")
 
+        tested = self.last_test_results.get(repo)
+        if not tested or tested.get("ok") is not True:
+            raise ValueError("The predefined test suite must pass before a merge decision can be created")
+        if str(tested.get("tested_sha") or "") != pull.head_sha:
+            raise ValueError("The last passing test run is not bound to the current pull request head SHA")
+
         predecessor_token = self._pull_state_token(pull)
         params = {
             "repo": repo,
             "pr_number": pr_number,
             "head_sha": pull.head_sha,
+            "tested_sha": str(tested["tested_sha"]),
             "base": pull.base_ref,
             "method": method,
         }
@@ -193,7 +223,20 @@ class DogfoodSession:
             return self._pull_state_token(self.github.get_pull(repo, pr_number))
 
         def execute() -> dict[str, Any]:
-            return self.github.merge_pull(repo, pr_number, pull.head_sha, method)
+            try:
+                return self.github.merge_pull(repo, pr_number, pull.head_sha, method)
+            except GitHubAPIError:
+                # A transport failure can happen after GitHub has already accepted the
+                # irreversible merge. Re-read state once and reconcile if the successor
+                # is unambiguously observable; otherwise let the kernel mark UNCERTAIN.
+                observed = self.github.get_pull(repo, pr_number)
+                if observed.merged and observed.merge_commit_sha:
+                    return {
+                        "merged": True,
+                        "sha": observed.merge_commit_sha,
+                        "reconciled_after_transport_error": True,
+                    }
+                raise
 
         def verify(output: dict[str, Any]) -> bool:
             observed = self.github.get_pull(repo, pr_number)
@@ -211,11 +254,12 @@ class DogfoodSession:
             operation="merge",
             purpose=f"Merge PR #{pr_number} into {pull.base_ref}: {pull.title}",
             parameters=params,
+            irreversible=True,
             expected_state_token=predecessor_token,
             read_state_token=current_state_token,
             execute=execute,
             verify=verify,
-            recover=lambda _: False,
+            recover=None,
         )
         result = self.kernel.run(action)
         if result.state.value == "escalated" and result.transition_id:
@@ -279,7 +323,7 @@ class DogfoodSession:
             "ledger_valid": self.kernel.ledger.verify_chain(),
             "capabilities": {
                 "automatic": ["repository inspection", "predefined pytest suite"],
-                "ask": ["merge pull request into configured default branch"],
+                "ask": ["merge tested pull request into configured default branch"],
                 "deny": ["secrets", "repository deletion", "force push", "visibility/security-policy changes"],
             },
         }
