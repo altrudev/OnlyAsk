@@ -92,3 +92,65 @@ def test_ledger_detects_tampering():
     assert ledger.verify_chain()
     object.__setattr__(entry, "entry_hash", "0" * 64)
     assert not ledger.verify_chain()
+
+
+def irreversible_kernel(execute, verify):
+    resource = "github/altrudev/OnlyAsk/pull/7"
+    params = {"head_sha": "abc123"}
+    envelope = AuthorityEnvelope(
+        "test",
+        grants=[
+            Grant(
+                Permission(resource, "merge"),
+                exact_constraints=params,
+            )
+        ],
+    )
+    kernel = TransitionKernel(envelope)
+    action = Action(
+        resource=resource,
+        operation="merge",
+        purpose="merge",
+        parameters=params,
+        irreversible=True,
+        execute=execute,
+        verify=verify,
+    )
+    return kernel, action
+
+
+def test_irreversible_verified_transition_succeeds_without_recovery_callable():
+    kernel, action = irreversible_kernel(lambda: {"sha": "merged"}, lambda _: True)
+
+    result = kernel.run(action)
+
+    assert result.state is TransitionState.VERIFIED
+    assert result.verification_passed is True
+    assert kernel.envelope.grants[0].remaining_uses == 0
+    assert kernel.ledger.verify_chain()
+
+
+def test_irreversible_execution_exception_is_uncertain():
+    def execute():
+        raise RuntimeError("connection lost")
+
+    kernel, action = irreversible_kernel(execute, lambda _: True)
+
+    result = kernel.run(action)
+
+    assert result.state is TransitionState.UNCERTAIN
+    assert result.recovery_passed is None
+    assert any(e.event == "irreversible_outcome_uncertain" for e in kernel.ledger.entries)
+    assert kernel.ledger.verify_chain()
+
+
+def test_irreversible_verification_failure_is_uncertain_without_fake_rollback():
+    kernel, action = irreversible_kernel(lambda: {"sha": "maybe"}, lambda _: False)
+
+    result = kernel.run(action)
+
+    assert result.state is TransitionState.UNCERTAIN
+    assert result.verification_passed is False
+    assert result.recovery_passed is None
+    assert not any(e.event == "recovering" for e in kernel.ledger.entries)
+    assert kernel.ledger.verify_chain()
