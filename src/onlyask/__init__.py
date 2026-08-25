@@ -12,6 +12,7 @@ from .models import (
     TransitionResult,
     TransitionState,
 )
+from .product import OnlyAskProductSession
 
 __all__ = [
     "Action",
@@ -20,10 +21,11 @@ __all__ = [
     "Decision",
     "DecisionKind",
     "Grant",
+    "OnlyAskProductSession",
     "Permission",
     "TransitionKernel",
     "TransitionResult",
     "TransitionState",
 ]
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

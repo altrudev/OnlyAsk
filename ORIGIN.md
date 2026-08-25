@@ -1,16 +1,13 @@
-# Project Origin and IP Boundary
+# Origin and Project Boundary
 
-OnlyAsk was created as a standalone project during the 2026 Agents for Humans Hackathon development period.
+OnlyAsk was created as a standalone implementation for the 2026 Agents for Humans competition.
 
-The project is independently implemented and licensed under Apache-2.0.
+The project was informed by prior independent research into governed autonomous systems, including questions of authority preservation, state transitions, verification, recovery, external directive influence, and evidence. Those ideas shaped the problem selection and threat model.
 
-The authors have conducted prior independent research into governed autonomous systems, authority boundaries, verification, recovery, provenance, and agent safety. That prior research informed the problem selection and threat model. No source code from H/R Native, DDC, Calibration Studio, or other private/canonical systems is required to build, test, or run OnlyAsk.
+The competition implementation in this repository is independently built and does not require H/R Native, DDC, Calibration Studio, or any private Altru.dev service to operate. Its source code, deterministic product scenario, evaluation harness, Strands integration, AgentCore deployment configuration, validation record, and documentation live in this repository.
 
-This repository intentionally maintains the following boundary:
+No private runtime is required to reproduce the deterministic OnlyAsk product. Cloud/model-driven operation uses the public Strands Agents and Amazon Bedrock AgentCore interfaces declared by this repository and remains subject to the same OnlyAsk authority boundary.
 
-- OnlyAsk has its own source code, schemas, tests, terminology, and release history.
-- OnlyAsk does not import or vendor private/canonical implementations.
-- Open-sourcing OnlyAsk does not imply that any separate research system or private implementation is open-source.
-- Any future dependency on an external private service must remain optional and may not be required for the competition submission to function.
+Project authorship: **Altru.dev**
 
-Conceptual influence is disclosed here to preserve provenance without collapsing distinct systems into one codebase or one license boundary.
+License: **Apache License 2.0**
