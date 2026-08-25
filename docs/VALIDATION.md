@@ -16,7 +16,7 @@ Result: **16 / 16 test-relevant source and test blobs matched exactly.**
 
 The verified set covered the authority engine, models, ledger, directive classifier, transition kernel, product session, deterministic evaluation harness, Strands authority adapter, package initializer, web console, and all six test modules present at the time of execution.
 
-Subsequent commits in this product pass changed AgentCore configuration, dependency metadata, and documentation; they did not change the deterministic source/test blobs covered by this result.
+Subsequent deployment-specific changes did not alter the deterministic source/test set covered by this result.
 
 ## Pytest
 
@@ -32,9 +32,11 @@ Result:
 25 passed in 0.07s
 ```
 
+The suite was rerun after the deployment-schema and dependency corrections with the same result: **25 / 25 passed**.
+
 ## Deterministic governed-autonomy evaluation
 
-The `onlyask.evals.run_evaluations()` harness was executed independently of model credentials.
+The `onlyask.evals.run_evaluations()` harness was executed independently of model credentials and rerun after the deployment corrections.
 
 Result:
 
@@ -65,10 +67,16 @@ The covered cases include:
 
 ## Python compilation
 
-Command equivalent:
+The deterministic source/test tree passed:
 
 ```bash
 python -m compileall -q src tests
+```
+
+The exact AgentCore entrypoint and updated Strands product module were also compiled after the deployment corrections:
+
+```bash
+python -m py_compile agentcore_main.py src/onlyask/strands_product.py
 ```
 
 Result: **pass**.
@@ -92,6 +100,22 @@ ledger valid: true
 
 This is the intended product story: routine delegated work proceeds, one genuine decision reaches the human, one prohibited transition is denied without escalation, a failed candidate mutation is recovered, and the evidence chain remains valid.
 
+## AgentCore configuration checks
+
+The current `agentcore/agentcore.json` was checked against the current AgentCore CLI configuration reference and corrected from the obsolete `agents` schema to the current `runtimes` schema.
+
+The corrected JSON was parsed locally and checked for the current required project fields used by OnlyAsk:
+
+- `runtimes`;
+- `memories`;
+- `credentials`;
+- `evaluators`;
+- `onlineEvalConfigs`.
+
+It targets `PYTHON_3_13` and contains no legacy top-level `agents` field.
+
+Runtime dependencies were moved into normal project dependencies because current `agentcore dev` performs a regular `uv sync` in the runtime code location.
+
 ## Static-analysis boundary
 
 `ruff` is declared in the development dependencies, but the validation runtime had no external package-network access and did not have Ruff preinstalled. An attempted installation could not reach the package index.
@@ -99,8 +123,6 @@ This is the intended product story: routine delegated work proceeds, one genuine
 This is recorded as **tool unavailable**, not as a lint pass or lint failure.
 
 ## AgentCore deployment boundary
-
-During the same pass, the AgentCore configuration was checked against the current AgentCore CLI configuration reference and corrected from the obsolete `agents` schema to the current `runtimes` schema. Runtime dependencies were also moved into normal project dependencies because current `agentcore dev` performs a regular `uv sync` in the runtime code location.
 
 The current execution environment does **not** provide:
 
@@ -111,10 +133,12 @@ The current execution environment does **not** provide:
 - an AWS/AgentCore connected app through ChatGPT;
 - outbound package-network access for installing the missing tooling.
 
-Therefore a real AgentCore deployment and Bedrock model invocation were **not executed in this validation pass**. The repository must not represent them as completed until they have been run in an authenticated AWS environment.
+Therefore `agentcore validate`, a real AgentCore deployment, and a Bedrock model invocation were **not executed in this validation pass**. The repository must not represent them as completed until they have been run in an authenticated AWS environment.
 
 ## Release gate
 
 Deterministic product gate: **PASS**.
+
+AgentCore configuration/documentation gate: **PASS AGAINST CURRENT PUBLISHED CLI MODEL**.
 
 AgentCore cloud gate: **PENDING AUTHENTICATED AWS EXECUTION**.
