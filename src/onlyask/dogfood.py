@@ -188,14 +188,20 @@ class DogfoodSession:
     def approve_once(self, transition_id: str) -> TransitionResult:
         pending = self.pending.pop(transition_id)
         action = pending.action
-        self.envelope.grants.append(
-            Grant(
-                Permission(action.resource, action.operation),
-                remaining_uses=1,
-                exact_constraints=dict(action.parameters),
-            )
+        grant = Grant(
+            Permission(action.resource, action.operation),
+            remaining_uses=1,
+            exact_constraints=dict(action.parameters),
         )
+        self.envelope.grants.append(grant)
         result = self.kernel.run(action)
+        if grant.remaining_uses > 0:
+            grant.remaining_uses = 0
+            self.kernel.ledger.append(
+                result.transition_id or transition_id,
+                "scoped_grant_revoked_after_attempt",
+                {"approved_transition_id": transition_id, "result_state": result.state.value},
+            )
         self._remember("approved", pending.detail.get("repo", ""), result)
         return result
 
