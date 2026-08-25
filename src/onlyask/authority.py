@@ -29,7 +29,12 @@ class AuthorityEngine:
                 authority_basis="constraint:require_verification",
             )
 
-        if action.mutating and envelope.require_recovery_for_mutation and action.recover is None:
+        if (
+            action.mutating
+            and not action.irreversible
+            and envelope.require_recovery_for_mutation
+            and action.recover is None
+        ):
             return Decision(
                 DecisionKind.DENY,
                 "Mutation has no recovery path.",
@@ -44,6 +49,13 @@ class AuthorityEngine:
                     authority_basis="scoped_grant",
                     grant_index=index,
                 )
+
+        if action.mutating and action.irreversible:
+            return Decision(
+                DecisionKind.ESCALATE,
+                "Irreversible mutation requires an exact scoped human grant.",
+                authority_basis="constraint:irreversible_requires_scoped_grant",
+            )
 
         for permission in envelope.allow:
             if permission.matches(action.resource, action.operation):
