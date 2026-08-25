@@ -15,6 +15,7 @@ OnlyAsk is pre-1.0 research software. Do not deploy the reference code with broa
 - treat AgentCore, Bedrock, and other hosting/runtime layers as execution infrastructure, not as authority sources
 - scope AWS execution roles and Bedrock access to the minimum resources required by the deployed runtime
 - do not commit AgentCore target state, credentials, access tokens, or local environment files
+- generate and review the dependency lockfile in a networked build environment before production deployment
 
 ## Hosted deployment boundary
 
