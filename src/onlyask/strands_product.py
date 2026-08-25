@@ -112,6 +112,7 @@ def build_site_agent(session: OnlyAskProductSession | None = None, model: Any = 
                 transactional=True,
             ),
         },
+        ledger=session.kernel.ledger,
     ).register(agent)
 
     return agent, session
