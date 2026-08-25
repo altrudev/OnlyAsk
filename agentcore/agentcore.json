@@ -1,24 +1,24 @@
 {
+  "$schema": "https://schema.agentcore.aws.dev/v1/agentcore.json",
   "name": "OnlyAsk",
   "version": 1,
   "tags": {
     "agentcore:created-by": "agentcore-cli",
     "agentcore:project-name": "OnlyAsk"
   },
-  "agents": [
+  "runtimes": [
     {
-      "type": "AgentCoreRuntime",
       "name": "OnlyAsk",
       "build": "CodeZip",
       "entrypoint": "agentcore_main.py",
       "codeLocation": ".",
       "runtimeVersion": "PYTHON_3_13",
       "networkMode": "PUBLIC",
-      "modelProvider": "Bedrock",
       "protocol": "HTTP"
     }
   ],
   "memories": [],
   "credentials": [],
-  "evaluators": []
+  "evaluators": [],
+  "onlineEvalConfigs": []
 }
