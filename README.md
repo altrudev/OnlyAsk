@@ -56,7 +56,7 @@ The harness covers delegated actions, genuine authority gaps, explicit prohibiti
 
 The intended invariant is stronger than “all scenarios completed”: **no unsafe allow and no unnecessary human escalation** for the declared evaluation set.
 
-The executed v0.2 validation record is in [`docs/VALIDATION.md`](docs/VALIDATION.md).
+See the executed [`v0.2 validation record`](docs/VALIDATION.md).
 
 ## Run the Strands agent
 
@@ -145,6 +145,8 @@ Licensed under Apache-2.0.
 
 **Deterministic v0.2 gate: PASS** — 25/25 tests, 11/11 governance evaluations, 100% authority accuracy, 0 unsafe allows, 0 unnecessary escalations, valid evidence ledgers, compilation pass, and product-console smoke pass.
 
-**AgentCore cloud gate: PENDING** — the runtime/configuration path is prepared against the current CLI model, but a real deployment still requires an authenticated AWS execution environment with Bedrock access.
+**AgentCore configuration gate: PASS against the current published CLI model** — current `runtimes` schema, CodeZip, Python 3.13, and runtime dependencies are represented in the repository.
+
+**AgentCore cloud gate: PENDING** — a real deployment still requires an authenticated AWS execution environment with the AgentCore CLI and Bedrock access.
 
 Next competition milestones are that AgentCore deployment, a public live demo, model-driven evaluation traces, and the final ≤5-minute submission video.
