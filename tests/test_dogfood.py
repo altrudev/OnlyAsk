@@ -19,7 +19,16 @@ class FakeTransport:
         if path == "/repos/altrudev/OnlyAsk/pulls?state=open&per_page=10":
             return [{"number": 7, "title": "Dogfood", "head": {"ref": "dogfood"}, "base": {"ref": "main"}, "html_url": "https://example/pr/7"}]
         if path == "/repos/altrudev/OnlyAsk/pulls/7" and method == "GET":
-            return {"number": 7, "title": "Dogfood", "head": {"sha": self.head_sha, "ref": "dogfood"}, "base": {"ref": "main"}, "state": "open" if not self.merged else "closed", "merged": self.merged, "mergeable": True, "html_url": "https://example/pr/7"}
+            return {
+                "number": 7,
+                "title": "Dogfood",
+                "head": {"sha": self.head_sha, "ref": "dogfood"},
+                "base": {"ref": "main"},
+                "state": "open" if not self.merged else "closed",
+                "merged": self.merged,
+                "mergeable": True,
+                "html_url": "https://example/pr/7",
+            }
         if path == "/repos/altrudev/OnlyAsk/pulls/7/merge" and method == "PUT":
             assert payload == {"sha": self.head_sha, "merge_method": "squash"}
             self.merged = True
@@ -34,7 +43,11 @@ class FakeRunner:
 
 def session():
     transport = FakeTransport()
-    s = DogfoodSession(projects=[DogfoodProject("OnlyAsk", "altrudev/OnlyAsk", "main", "/tmp")], github=GitHubAdapter(transport), runner=FakeRunner())
+    s = DogfoodSession(
+        projects=[DogfoodProject("OnlyAsk", "altrudev/OnlyAsk", "main", "/tmp")],
+        github=GitHubAdapter(transport),
+        runner=FakeRunner(),
+    )
     return s, transport
 
 
@@ -55,6 +68,7 @@ def test_merge_requires_human_then_uses_exact_one_time_grant():
     assert requested.state.value == "escalated"
     assert transport.merged is False
     assert requested.transition_id in s.pending
+
     approved = s.approve_once(requested.transition_id)
     assert approved.state.value == "verified"
     assert transport.merged is True
@@ -85,15 +99,18 @@ def test_reject_records_human_decision():
 def test_safe_runner_does_not_accept_arbitrary_command(monkeypatch, tmp_path: Path):
     (tmp_path / "pyproject.toml").write_text("[project]\nname='x'\nversion='0.0.1'\n")
     seen = {}
+
     class Done:
         returncode = 0
         stdout = "ok"
         stderr = ""
+
     def fake_run(command, **kwargs):
         seen["command"] = command
         seen["cwd"] = kwargs["cwd"]
         seen["shell"] = kwargs.get("shell")
         return Done()
+
     monkeypatch.setattr("onlyask.dogfood.subprocess.run", fake_run)
     project = DogfoodProject("X", "a/b", local_path=str(tmp_path))
     result = SafeTestRunner().run(project)
