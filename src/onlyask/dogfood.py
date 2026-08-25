@@ -186,10 +186,18 @@ class DogfoodSession:
                 purpose=f"Run the predefined test suite for {repo}",
                 mutating=False,
                 execute=lambda: self.runner.run(project),
+                verify=lambda output: (
+                    isinstance(output, dict)
+                    and output.get("available") is True
+                    and output.get("ok") is True
+                    and bool(output.get("tested_sha"))
+                ),
             )
         )
         if result.state.value == "verified" and isinstance(result.output, dict):
             self.last_test_results[repo] = dict(result.output)
+        else:
+            self.last_test_results.pop(repo, None)
         self._remember("tests", repo, result)
         return result
 
@@ -226,9 +234,6 @@ class DogfoodSession:
             try:
                 return self.github.merge_pull(repo, pr_number, pull.head_sha, method)
             except GitHubAPIError:
-                # A transport failure can happen after GitHub has already accepted the
-                # irreversible merge. Re-read state once and reconcile if the successor
-                # is unambiguously observable; otherwise let the kernel mark UNCERTAIN.
                 observed = self.github.get_pull(repo, pr_number)
                 if observed.merged and observed.merge_commit_sha:
                     return {
