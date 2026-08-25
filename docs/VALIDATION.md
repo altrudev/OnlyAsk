@@ -116,6 +116,8 @@ It targets `PYTHON_3_13` and contains no legacy top-level `agents` field.
 
 Runtime dependencies were moved into normal project dependencies because current `agentcore dev` performs a regular `uv sync` in the runtime code location.
 
+A dependency lockfile was not generated because the validation environment could not reach the package index. `uv.lock` remains eligible for source control and should be generated/committed during the first authenticated, networked deployment pass rather than fabricated here.
+
 ## Static-analysis boundary
 
 `ruff` is declared in the development dependencies, but the validation runtime had no external package-network access and did not have Ruff preinstalled. An attempted installation could not reach the package index.
