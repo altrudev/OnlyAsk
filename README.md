@@ -56,14 +56,18 @@ The harness covers delegated actions, genuine authority gaps, explicit prohibiti
 
 The intended invariant is stronger than “all scenarios completed”: **no unsafe allow and no unnecessary human escalation** for the declared evaluation set.
 
+The executed v0.2 validation record is in [`docs/VALIDATION.md`](docs/VALIDATION.md).
+
 ## Run the Strands agent
 
+Strands and the AgentCore SDK are runtime dependencies because the AgentCore CodeZip development flow performs a normal project dependency sync.
+
+With AWS credentials and Amazon Bedrock model access configured:
+
 ```bash
-pip install -e '.[strands]'
+pip install -e .
 onlyask agent
 ```
-
-Strands uses Amazon Bedrock by default, so configure AWS credentials with Bedrock model access before running the model-driven path. The agent can also be constructed with another Strands-supported model provider.
 
 The reference Strands integration uses `BeforeToolCallEvent` as an independent capability boundary. Mutating tools must additionally invoke `TransitionKernel`; prompt instructions are never treated as the enforcement mechanism.
 
@@ -71,16 +75,16 @@ See [`docs/STRANDS.md`](docs/STRANDS.md) and [`ARCHITECTURE.md`](ARCHITECTURE.md
 
 ## Amazon Bedrock AgentCore
 
-OnlyAsk now includes an AgentCore Runtime entry point and CodeZip configuration. The committed runtime target is **Python 3.13**, avoiding the Python 3.10/3.11 direct-code runtime update cutoff that lands before the hackathon submission deadline.
+OnlyAsk includes an AgentCore Runtime entry point and a current CodeZip configuration using the CLI's `runtimes` schema. The committed runtime target is **Python 3.13**.
 
 ```bash
-pip install -e '.[agentcore]'
 npm install -g @aws/agentcore
-agentcore dev --no-browser --logs
+agentcore validate
+agentcore dev --logs
 agentcore deploy
 ```
 
-AWS account/Region target state is deliberately not committed. See [`docs/AGENTCORE.md`](docs/AGENTCORE.md) for the current deployment flow.
+AWS account/Region target state is deliberately not committed. See [`docs/AGENTCORE.md`](docs/AGENTCORE.md) for the deployment flow and [`docs/VALIDATION.md`](docs/VALIDATION.md) for the boundary between executed validation and the pending authenticated AWS deployment.
 
 ## Architecture
 
@@ -139,6 +143,8 @@ Licensed under Apache-2.0.
 
 ## Status
 
-**v0.2 product branch:** interactive governed-operations console + deterministic storefront scenario + governed-autonomy evaluation harness + Strands website-operations agent + AgentCore deployment entry point.
+**Deterministic v0.2 gate: PASS** — 25/25 tests, 11/11 governance evaluations, 100% authority accuracy, 0 unsafe allows, 0 unnecessary escalations, valid evidence ledgers, compilation pass, and product-console smoke pass.
 
-Next competition milestones are a deployed AgentCore runtime, public live demo, model-driven evaluation traces, and the final ≤5-minute submission video.
+**AgentCore cloud gate: PENDING** — the runtime/configuration path is prepared against the current CLI model, but a real deployment still requires an authenticated AWS execution environment with Bedrock access.
+
+Next competition milestones are that AgentCore deployment, a public live demo, model-driven evaluation traces, and the final ≤5-minute submission video.
