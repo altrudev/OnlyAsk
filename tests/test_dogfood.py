@@ -69,6 +69,8 @@ def test_merge_fails_stale_if_head_changes_after_human_review():
     approved = s.approve_once(requested.transition_id)
     assert approved.state.value == "stale"
     assert transport.merged is False
+    assert s.envelope.grants[-1].remaining_uses == 0
+    assert s.kernel.ledger.entries[-1].event == "scoped_grant_revoked_after_attempt"
 
 
 def test_reject_records_human_decision():
