@@ -58,6 +58,7 @@ class PullSnapshot:
     state: str
     merged: bool
     mergeable: bool | None
+    merge_commit_sha: str
     html_url: str
 
 
@@ -112,6 +113,7 @@ class GitHubAdapter:
             state=str(p.get("state", "")),
             merged=bool(p.get("merged", False)),
             mergeable=p.get("mergeable"),
+            merge_commit_sha=str(p.get("merge_commit_sha") or ""),
             html_url=str(p.get("html_url", "")),
         )
 
