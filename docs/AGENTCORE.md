@@ -28,6 +28,8 @@ Current AgentCore local development runs a normal `uv sync` against the `pyproje
 
 Development-only tools remain in the `dev` extra.
 
+A `uv.lock` file should be committed after the first dependency resolution in an environment with package-network access. It is intentionally **not gitignored**. The current validation environment could not generate a trustworthy lockfile because it could not reach the package index; the repository does not fabricate one.
+
 ## Prerequisites
 
 - AWS account and credentials with the permissions required by AgentCore Runtime;
