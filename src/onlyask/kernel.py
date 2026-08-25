@@ -108,14 +108,39 @@ class TransitionKernel:
             self.authority.consume_grant(self.envelope, decision)
 
         if not action.mutating:
-            self.ledger.append(transition_id, "verified", {"mode": "non_mutating"})
+            if action.verify is None:
+                self.ledger.append(transition_id, "verified", {"mode": "non_mutating"})
+                return TransitionResult(
+                    TransitionState.VERIFIED,
+                    decision,
+                    output=output,
+                    verification_passed=True,
+                    transition_id=transition_id,
+                    message="Non-mutating action completed.",
+                )
+            self.ledger.append(transition_id, "verifying", {"mode": "non_mutating"})
+            try:
+                verification_passed = bool(action.verify(output))
+            except Exception:
+                verification_passed = False
+            if verification_passed:
+                self.ledger.append(transition_id, "verified", {"mode": "non_mutating"})
+                return TransitionResult(
+                    TransitionState.VERIFIED,
+                    decision,
+                    output=output,
+                    verification_passed=True,
+                    transition_id=transition_id,
+                    message="Non-mutating postcondition verified.",
+                )
+            self.ledger.append(transition_id, "verification_failed", {"mode": "non_mutating"})
             return TransitionResult(
-                TransitionState.VERIFIED,
+                TransitionState.FAILED,
                 decision,
                 output=output,
-                verification_passed=True,
+                verification_passed=False,
                 transition_id=transition_id,
-                message="Non-mutating action completed.",
+                message="Non-mutating action completed but its postcondition failed.",
             )
 
         assert action.verify is not None
