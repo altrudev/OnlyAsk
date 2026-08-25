@@ -123,7 +123,7 @@ class RuntimeAuthorityGate:
             return
         self.ledger.append(
             evidence_id,
-            "runtime_tool_authority_decision",
+            f"{self.runtime}_tool_authority_decision",
             {
                 "runtime": self.runtime,
                 "tool": tool_name,
