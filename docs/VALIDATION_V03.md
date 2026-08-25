@@ -2,133 +2,164 @@
 
 Date: 2026-08-25  
 Branch: `dogfood-pwa-v0.3`  
-Runtime: Python 3.13.5
+Python runtime: 3.13.5
 
-This record separates what was actually executed from historical v0.2 evidence and from deployment steps that still require a real hosted backend.
+This record separates executed evidence from source review and from deployment work that still requires an external runtime.
+
+## Scope of v0.3
+
+v0.3 is not only a UI delta. It changes the governance core and therefore required a full Python regression pass.
+
+Changes include:
+
+- installable phone PWA;
+- real GitHub dogfood adapter;
+- constrained test runner;
+- shared runtime-neutral capability gate;
+- Strands adapter moved onto that common gate;
+- experimental Rust/Rig 0.42 adapter consuming the same conformance fixture;
+- explicit irreversible-transition semantics;
+- `UNCERTAIN` state for irreversible outcomes that cannot be proven;
+- read-only postcondition verification;
+- exact tested-commit binding before phone merge approval.
 
 ## Exact source identity
 
-The local validation runtime cannot clone GitHub directly. The v0.3 files were therefore retrieved through the authenticated GitHub repository interface, reconstructed locally, and checked using Git's blob hashing rule before execution.
+The validation container cannot clone GitHub directly. Repository files were retrieved through the authenticated GitHub interface, reconstructed locally, and checked using Git's blob hashing rule.
 
-The executed v0.3-relevant package graph included exact repository blobs for:
+The final security-sensitive blobs were byte-for-byte identical between GitHub and the executed tree, including:
 
-- `src/onlyask/__init__.py`
-- `src/onlyask/authority.py`
-- `src/onlyask/models.py`
-- `src/onlyask/kernel.py`
-- `src/onlyask/ledger.py`
-- `src/onlyask/directives.py`
-- `src/onlyask/product.py`
-- `src/onlyask/github_adapter.py`
-- `src/onlyask/dogfood.py`
-- `src/onlyask/pwa.py`
-- `tests/test_dogfood.py`
-- `tests/test_github_adapter.py`
-- `tests/test_pwa.py`
+- `src/onlyask/dogfood.py` — `984875f9ed8fd1149d26a268f814a54879a3dc3c`
+- `tests/test_dogfood.py` — `b49d4ce08aa1aae4cbc74e3a1fbea64f4b0007ac`
+- `src/onlyask/pwa.py` — `f2c7f2ae4c92c967fb9a20a98b525c8f002727e5`
+- `tests/test_pwa.py` — `bec9dba0f84f7e64a295083b4f98baeaea7a2b5f`
 
-The final GitHub adapter blob used the current GitHub REST API version `2026-03-10`.
+The previously reconstructed authority, kernel, runtime-contract, GitHub adapter, Strands adapter, product, evaluation, and remaining test blobs were also included in the same local package graph.
 
-## v0.3-specific pytest gate
+## Full Python branch gate
 
 Command equivalent:
 
 ```bash
-PYTHONPATH=src pytest -q \
-  tests/test_dogfood.py \
-  tests/test_github_adapter.py \
-  tests/test_pwa.py
+PYTHONPATH=src pytest -q
 ```
 
 Result:
 
 ```text
-11 passed
+58 passed
 ```
 
-Covered behavior:
+The same tree also passed:
 
-1. configured repository inspection runs inside delegated read authority;
-2. the fixed test operation runs without a human escalation;
-3. PR merge requires a human decision;
-4. approval is exact and one-use;
-5. reviewed PR head drift produces `STALE` and prevents merge;
-6. PR retargeting to a different base after review also produces `STALE`;
-7. a stale attempt revokes the remaining scoped grant;
-8. successful merge verification binds the merge response SHA to the PR's observed merge commit SHA;
-9. explicit human rejection is written to the evidence ledger;
-10. repository-name validation rejects endpoint-injection input;
-11. the runner uses a fixed no-shell pytest command and does not inherit backend GitHub/AWS/model-provider secrets;
-12. the PWA manifest contains the installability fields and required icon sizes;
-13. generated icons have valid PNG signatures;
-14. PWA authentication rejects bad credentials and accepts the derived session cookie without storing the original token in JavaScript.
-
-Several of these properties are combined into single pytest cases; the test count is 11.
-
-## Compilation
-
-The exact v0.3-relevant source/test tree was compiled with Python's bytecode compiler.
+```bash
+python -m compileall -q src tests agentcore_main.py
+```
 
 Result: **PASS**.
 
+The 58-test suite includes the original product and governance tests plus v0.3 coverage for:
+
+- delegated repository inspection and predefined tests;
+- unknown runtime tools failing closed;
+- transactional enforcement for mutating runtime tools;
+- shared runtime conformance cases;
+- explicit irreversible authority requiring a scoped human grant;
+- exact parameter/grant widening resistance;
+- stale PR head/base blocking execution;
+- successful successor binding after merge;
+- transport-error reconciliation when an irreversible successor is observable;
+- `UNCERTAIN` when irreversible execution or verification cannot be proven;
+- read-only postcondition verification;
+- failed test runs reporting FAILED instead of VERIFIED;
+- test evidence bound to an exact Git SHA;
+- wrong GitHub origin rejection;
+- dirty working-tree rejection;
+- fixed no-shell runner commands;
+- secret-free subprocess environment;
+- PWA manifest/service-worker/icon shape;
+- PWA authentication and derived session cookie;
+- visible alarm styling for `UNCERTAIN` state.
+
+## Deterministic governance evaluation
+
+The current v0.3 authority engine and transition kernel were run through the deterministic evaluator after the core changes.
+
+Result:
+
+- scenarios: **11 / 11 passed**
+- authority accuracy: **100%**
+- unsafe allows: **0**
+- unnecessary escalations: **0**
+- observed human decisions matched expected human decisions
+- all evaluated evidence ledgers: **valid**
+
+This is current v0.3 evidence, not merely the historical v0.2 result.
+
 ## HTTP/PWA smoke gate
 
-The exact PWA source was started on loopback with a test-only 32-character PWA session token and `ONLYASK_SECURE_COOKIE=0` for local HTTP debugging.
+The PWA backend was started on loopback with a test-only PWA credential and local HTTP cookie override.
 
-Observed endpoints:
+Observed:
 
 | Check | Result |
 | --- | --- |
 | `GET /` | 200 |
 | `GET /manifest.webmanifest` | 200 |
 | `GET /sw.js` | 200 |
-| `GET /icon-192.png` | 200, valid PNG signature |
+| generated icon | valid PNG |
 | unauthenticated `GET /api/state` | 401 |
-| bad `POST /api/login` | 401 |
-| valid `POST /api/login` | 200 |
-| cookie-authenticated `GET /api/state` | 200 |
-| manifest display mode | `standalone` |
-| manifest icons | 192x192 and 512x512 |
-| evidence ledger state | valid |
-| raw GitHub token exposed by state API | no |
+| incorrect login | 401 |
+| correct login | 200 |
+| cookie-authenticated state | 200 |
+| manifest display | `standalone` |
+| 192×192 + 512×512 icons | present |
+| evidence ledger | valid |
+| raw GitHub token in state response | absent |
+| raw PWA token in state response | absent |
+| non-loopback bind without PWA token | refused |
 
-The login response set a derived `oa_session` cookie with `HttpOnly` and `SameSite=Strict`. Production/phone use keeps `Secure` enabled and therefore requires HTTPS.
+Production cookie behavior keeps `HttpOnly`, `SameSite=Strict`, and `Secure`. The backend also emits no-store, anti-sniffing, anti-framing, referrer, and CSP protections.
 
-## DDC/security findings fixed during the pass
+## DDC/security findings fixed during v0.3
 
-The implementation was changed during review rather than merely documented:
+The review produced code changes, not documentation-only findings:
 
-- **head-only predecessor binding was insufficient**: the PR predecessor now binds head SHA, base branch, open/merged state, repository/PR identity, and action parameters, so retargeting after review invalidates approval;
-- **approval reuse after a failed attempt was possible**: a phone approval is now one attempted transition; stale/failure paths revoke the unused grant;
-- **post-merge verification was too weak**: the GitHub merge response SHA must now match the observed PR merge commit SHA;
-- **pytest inherited backend environment state**: the runner now receives a small OS-variable allowlist and no OnlyAsk/GitHub/AWS/model-provider secrets;
-- **browser token persistence was too permissive**: the PWA uses a derived `HttpOnly`, `SameSite=Strict` session cookie rather than JavaScript local storage;
-- **REST version pin was old but still supported**: the adapter now pins GitHub REST API `2026-03-10`.
+1. **Head-only predecessor binding was insufficient.** Merge review now binds repository, PR number, head SHA, base branch, open/merged state, and exact action parameters.
+2. **Approval reuse after stale/failure paths was possible.** An approval is one attempted transition and unused grant authority is revoked after an unsuccessful attempt.
+3. **Post-merge verification was too weak.** Returned merge SHA must agree with the observed successor.
+4. **Irreversible operations were modeled as fake-recoverable mutations.** They now require an exact scoped grant and become `UNCERTAIN` when reality cannot be reconciled.
+5. **Read-only execution could be confused with successful outcome.** Non-mutating operations can now declare postconditions; failing pytest is FAILED, not VERIFIED.
+6. **Test evidence could certify uncommitted code under the current HEAD SHA.** Merge-eligible test evidence now requires a clean working tree.
+7. **A configured checkout could point at a different GitHub repository.** Runner evidence now requires the canonical origin to match the governed repository.
+8. **Pytest inherited backend environment state.** The runner uses a small OS-variable allowlist and no GitHub/AWS/model-provider secrets.
+9. **Browser token persistence was too permissive.** The PWA uses a derived `HttpOnly`, `SameSite=Strict` cookie rather than JavaScript storage.
+10. **Ambiguous irreversible outcomes were visually too quiet.** `UNCERTAIN` now uses the phone alarm/error state styling.
 
-## Historical v0.2 regression evidence
+## Rig 0.42 validation boundary
 
-The v0.2 deterministic release gate was previously executed against exact repository blobs and passed **25 / 25 tests**, plus **11 / 11 governance evaluation scenarios** with 0 unsafe allows and 0 unnecessary escalations.
+Implemented in `adapters/rig/`:
 
-The v0.3 branch does not modify the v0.2 authority engine, transition kernel, ledger, directive classifier, product scenario, evaluation harness, Strands authority adapter, or their existing tests. Their Git blob identities remain unchanged.
+- pinned `rig = "=0.42.0"`;
+- pre-tool `AgentHook` authority interception;
+- invalid/unregistered tool fail-closed behavior;
+- shared `conformance/runtime_adapter_cases.json` with the Python implementation;
+- Rust unit tests for the common contract and resource mapping.
 
-Because this validation runtime cannot clone the complete GitHub tree directly, this record does **not** relabel the historical 25/25 run plus the new 11/11 run as a single 36-test pytest invocation. A clone-capable deployment host should run the complete repository suite before the v0.3 PR is merged.
+**Not yet executed:** Rust compilation and `cargo test`.
 
-## Remaining deployment gate
+The validation container has no `cargo`/`rustc`, outbound package installation is blocked, Replit rejected creation of a temporary validator because the account requires an active subscription, and no authenticated Cloudflare Sandbox execution connector is available in this chat. No Replit project was created and no Replit credits were consumed.
 
-A phone cannot install the PWA from a normal HTTP LAN address. The next gate is a real HTTPS backend with:
+Therefore the Rig source is **IMPLEMENTED / COMPILE GATE PENDING**. It must not be represented as a passing Rust test until `cargo test` has actually run on a Rust-capable host.
 
-- a trusted OnlyAsk checkout;
-- `ONLYASK_PROJECT_ROOT`;
-- a repository-scoped GitHub credential;
-- a separate high-entropy `ONLYASK_PWA_TOKEN`;
-- HTTPS/reverse-proxy or tunnel termination;
-- rate limiting and appropriate process isolation.
+## Release status
 
-The current pytest runner is for trusted dogfood code only. It is constrained but not an OS/container sandbox.
+- exact current Python full-suite gate: **PASS — 58/58**
+- Python source/test/entrypoint compilation: **PASS**
+- deterministic governance evaluation: **PASS — 11/11**
+- HTTP/PWA smoke: **PASS**
+- Rig 0.42 source/conformance implementation: **COMPLETE**
+- Rig Rust compile/test: **PENDING — release blocker**
+- real HTTPS phone deployment: **PENDING after code release gate**
 
-## Current release status
-
-- v0.3 dogfood-specific exact-blob gate: **PASS (11/11)**
-- v0.3 HTTP/PWA smoke gate: **PASS**
-- v0.2 unchanged regression evidence: **PASS (historical exact 25/25 + 11/11 evals)**
-- complete repository pytest on clone-capable host: **PENDING**
-- real HTTPS phone deployment: **PENDING**
+v0.3 should remain on its branch/draft PR until the Rust compile/test gate is executed.
