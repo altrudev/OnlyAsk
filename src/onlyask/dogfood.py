@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import subprocess
 import sys
@@ -7,7 +9,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from .github_adapter import GitHubAdapter
+from .github_adapter import GitHubAdapter, PullSnapshot
 from .kernel import TransitionKernel
 from .models import Action, AuthorityEnvelope, Grant, Permission, TransitionResult
 
@@ -21,11 +23,34 @@ class DogfoodProject:
 
 
 class SafeTestRunner:
-    """Runs one fixed test command in an explicitly configured project directory."""
+    """Runs one fixed test command in an explicitly configured trusted project directory."""
+
+    _ENV_ALLOWLIST = {
+        "PATH",
+        "HOME",
+        "USERPROFILE",
+        "SYSTEMROOT",
+        "TEMP",
+        "TMP",
+        "TMPDIR",
+        "LOCALAPPDATA",
+        "APPDATA",
+        "VIRTUAL_ENV",
+        "PYTHONPATH",
+        "PYTHONHOME",
+        "LANG",
+        "LC_ALL",
+    }
 
     def __init__(self, timeout_seconds: int = 120, output_limit: int = 16000) -> None:
         self.timeout_seconds = timeout_seconds
         self.output_limit = output_limit
+
+    @classmethod
+    def sanitized_environment(cls) -> dict[str, str]:
+        env = {key: value for key, value in os.environ.items() if key in cls._ENV_ALLOWLIST}
+        env["PYTHONUNBUFFERED"] = "1"
+        return env
 
     def run(self, project: DogfoodProject) -> dict[str, Any]:
         if not project.local_path:
@@ -44,7 +69,7 @@ class SafeTestRunner:
             text=True,
             timeout=self.timeout_seconds,
             check=False,
-            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+            env=self.sanitized_environment(),
         )
         output = (completed.stdout + completed.stderr)[-self.output_limit :]
         return {
@@ -100,6 +125,17 @@ class DogfoodSession:
         self.pending: dict[str, PendingDecision] = {}
         self.last_results: list[dict[str, Any]] = []
 
+    @staticmethod
+    def _pull_state_token(pull: PullSnapshot) -> str:
+        payload = {
+            "head_sha": pull.head_sha,
+            "base_ref": pull.base_ref,
+            "state": pull.state,
+            "merged": pull.merged,
+        }
+        canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
     def project(self, repo: str) -> DogfoodProject:
         for project in self.projects:
             if project.repo == repo:
@@ -144,6 +180,7 @@ class DogfoodSession:
         if not pull.head_sha:
             raise ValueError("Pull request head SHA is unavailable")
 
+        predecessor_token = self._pull_state_token(pull)
         params = {
             "repo": repo,
             "pr_number": pr_number,
@@ -152,23 +189,30 @@ class DogfoodSession:
             "method": method,
         }
 
-        def current_head() -> str:
-            return self.github.get_pull(repo, pr_number).head_sha
+        def current_state_token() -> str:
+            return self._pull_state_token(self.github.get_pull(repo, pr_number))
 
         def execute() -> dict[str, Any]:
             return self.github.merge_pull(repo, pr_number, pull.head_sha, method)
 
-        def verify(_: dict[str, Any]) -> bool:
+        def verify(output: dict[str, Any]) -> bool:
             observed = self.github.get_pull(repo, pr_number)
-            return observed.merged is True and observed.base_ref == pull.base_ref
+            merged_sha = str(output.get("sha") or "")
+            return (
+                bool(output.get("merged"))
+                and bool(merged_sha)
+                and observed.merged is True
+                and observed.base_ref == pull.base_ref
+                and observed.merge_commit_sha == merged_sha
+            )
 
         action = Action(
             resource=f"github/{repo}/pull/{pr_number}",
             operation="merge",
             purpose=f"Merge PR #{pr_number} into {pull.base_ref}: {pull.title}",
             parameters=params,
-            expected_state_token=pull.head_sha,
-            read_state_token=current_head,
+            expected_state_token=predecessor_token,
+            read_state_token=current_state_token,
             execute=execute,
             verify=verify,
             recover=lambda _: False,
