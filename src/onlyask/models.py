@@ -24,6 +24,7 @@ class TransitionState(str, Enum):
     RECOVERED = "recovered"
     RECOVERY_FAILED = "recovery_failed"
     STALE = "stale"
+    UNCERTAIN = "uncertain"
 
 
 @dataclass(frozen=True)
@@ -75,6 +76,7 @@ class Action:
     purpose: str
     parameters: dict[str, Any] = field(default_factory=dict)
     mutating: bool = True
+    irreversible: bool = False
     expected_state_token: str | None = None
     read_state_token: StateReader | None = None
     execute: Executor | None = None

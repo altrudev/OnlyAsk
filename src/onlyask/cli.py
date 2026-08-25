@@ -17,6 +17,10 @@ def main() -> None:
     web.add_argument("--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1)")
     web.add_argument("--port", type=int, default=8765, help="Bind port (default: 8765)")
 
+    pwa = sub.add_parser("pwa", help="Run the installable dogfood phone control surface")
+    pwa.add_argument("--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1)")
+    pwa.add_argument("--port", type=int, default=8787, help="Bind port (default: 8787)")
+
     agent = sub.add_parser("agent", help="Run the Strands-powered website operations agent")
     agent.add_argument(
         "prompt",
@@ -55,6 +59,12 @@ def main() -> None:
 
     if args.command == "web":
         from .webapp import serve
+
+        serve(args.host, args.port)
+        return
+
+    if args.command == "pwa":
+        from .pwa import serve
 
         serve(args.host, args.port)
         return

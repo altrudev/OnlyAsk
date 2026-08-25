@@ -2,65 +2,105 @@
 
 **Governed Autonomous Operations**
 
-OnlyAsk is an autonomous operations agent built around one rule:
+OnlyAsk is built around one rule:
 
 > An agent may act only inside authority already granted to it. It asks the human only when the next meaningful decision actually belongs to the human.
 
 Most agent systems force a bad choice: supervise every step or grant broad permissions. OnlyAsk implements a third model — **bounded autonomy**.
 
-Strands Agents handles reasoning and tool selection. A deterministic transition kernel independently decides whether a proposed operation is allowed, must be escalated, or is prohibited. Mutations are bound to observed predecessor state, verified after execution, and recovered when verification fails.
+A deterministic transition kernel decides whether a proposed operation is allowed, must be escalated, or is prohibited. Transitions can be bound to observed predecessor state, verified after execution, recovered when safe recovery exists, or explicitly classified as irreversible. External content is evidence, never a new authority source.
 
-## The product
+## v0.3 — Dogfood PWA
 
-The v0.2 judge demo is a governed website-operations console. Give the agent a goal such as keeping a storefront healthy and define the authority boundary once.
+v0.3 turns the governance model into something usable on real development work: an installable phone control surface backed by a governed GitHub adapter and constrained test runner.
 
-OnlyAsk can then:
+From the PWA you can:
 
-- inspect the site without interrupting the human;
-- repair an already-authorized broken link and verify the result;
-- surface a price change as a narrow human decision instead of requesting blanket access;
-- convert approval into a one-use, exact-value grant;
-- hard-deny prohibited DNS or credential actions without bothering the human;
-- roll back a mutation that fails its postcondition;
-- isolate prompt-injection-style page instructions as untrusted evidence;
-- expose the observable decision path through a hash-chained evidence ledger.
+- inspect the configured repository without human interruption;
+- run the predefined pytest suite against a trusted checkout;
+- see recent operations and the hash-chained evidence ledger;
+- request a PR merge into the configured default branch;
+- review that merge in a **Human Decisions** queue;
+- approve it once or decline it.
 
-The point is not “AI that asks permission.” The point is **AI that knows when permission already exists, when it does not, and when an action should never be available at all**.
+The PWA does **not** receive the GitHub credential. It does not expose a generic shell, arbitrary GitHub endpoint proxy, repository deletion, force push, visibility changes, or security-policy changes.
 
-## Run the interactive console
+### Tested-commit merge semantics
 
-No model credentials are required for the deterministic judge scenario.
+A merge is not authorized merely because the backend technically has a credential capable of performing it.
+
+Before a test run can produce merge-eligible evidence, OnlyAsk verifies that the configured checkout has the expected GitHub origin and a clean working tree. It then binds the passing test result to the exact `HEAD` SHA.
+
+A merge decision is bound to the repository, PR number, tested/head SHA, base branch, open/merged state, and merge method. Before execution, OnlyAsk re-reads the PR. If the head or target changes after review, the transition becomes **STALE** and no merge occurs.
+
+A phone approval is one attempted transition. A successful merge is not treated as complete until the returned merge SHA agrees with the observed PR successor. If an irreversible merge outcome becomes ambiguous — for example, a transport failure after GitHub may have accepted it — OnlyAsk reconciles from observed state when possible. Otherwise the transition becomes **UNCERTAIN** and requires manual reconciliation rather than blind retry or fake rollback.
+
+See [`docs/DOGFOOD_PWA.md`](docs/DOGFOOD_PWA.md) and [`docs/VALIDATION_V03.md`](docs/VALIDATION_V03.md).
+
+## Run the phone backend locally
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate
+# activate the environment for your OS
 pip install -e '.[dev]'
 pytest
+
+# configure ONLYASK_PROJECT_ROOT
+# configure ONLYASK_GITHUB_TOKEN when GitHub write access is needed
+# configure ONLYASK_PWA_TOKEN for non-loopback access
+onlyask pwa --host 127.0.0.1 --port 8787
+```
+
+Desktop development can use localhost. A real phone installation requires an **HTTPS origin**; a normal `http://<LAN-IP>` address is not sufficient for a service-worker-backed PWA.
+
+## Phone security boundary
+
+- GitHub credentials remain server-side.
+- The PWA session credential is separate from the GitHub credential.
+- Browser login uses a derived `HttpOnly`, `SameSite=Strict` cookie rather than storing the original token in JavaScript storage.
+- Remote cookies are `Secure` by default.
+- API state exposes only whether backend credentials are configured, never their values.
+- The test subprocess receives a small operating-system environment allowlist, not backend GitHub/AWS/model-provider secrets.
+- The test runner uses fixed commands and never invokes a shell.
+- Passing test evidence requires the configured GitHub origin, a clean working tree, an exact Git commit, and a passing pytest result.
+- Irreversible ambiguity is visibly surfaced as `UNCERTAIN` on the phone.
+
+The current runner is intentionally limited to **trusted dogfood repositories**. Python tests remain executable code; untrusted repositories require an OS/container sandbox before they should be supported.
+
+## Runtime independence: Strands + Rig
+
+OnlyAsk authority is runtime-neutral. A model framework may select a tool, but it does not become the source of permission.
+
+`src/onlyask/runtime_contract.py` defines the shared runtime capability contract used by the Python/Strands adapter. `conformance/runtime_adapter_cases.json` contains portable ALLOW / ESCALATE / DENY cases for delegated reads/tests, owner-only merge, credential denial, force-push denial, unknown tools, and unprotected mutations.
+
+`adapters/rig/` is a Rust adapter pinned to **Rig 0.42.0**. It uses Rig's pre-tool hook boundary and consumes the same conformance fixture as Python. The Rig adapter is implemented but remains behind a real `cargo test` release gate; source review is not being mislabeled as a Rust compile pass.
+
+## v0.2 deterministic product scenario
+
+The governed storefront console remains useful for demonstrating the authority model without credentials:
+
+```bash
 onlyask web
 ```
 
-Open `http://127.0.0.1:8765`.
+It demonstrates automatic inspection, verified repair, a genuine commercial authority escalation, a one-use exact-value approval grant, hard DNS/credential denial, failed-verification recovery, hostile directive isolation, and the evidence ledger.
 
-Use **Run end-to-end showcase** to exercise the complete story: automatic inspection → verified repair → human escalation → explicit denial → failed verification/recovery → hostile directive isolation.
+The point is not “AI that asks permission.” The point is **AI that knows when permission already exists, when it does not, and when an action should never be available at all**.
 
-## Evaluate the product claim
-
-OnlyAsk includes a deterministic evaluation harness so the governance claim can be tested independently of model variability or credentials.
+## Evaluate the governance claim
 
 ```bash
 onlyask eval
 onlyask eval --json
 ```
 
-The harness covers delegated actions, genuine authority gaps, explicit prohibitions, stale-predecessor blocking, verified mutation, rollback, one-time grant replay prevention, exact-parameter widening, and directive isolation. Its summary reports authority accuracy, expected vs observed human decisions, unsafe allows, unnecessary escalations, and ledger integrity.
+The deterministic harness covers delegated actions, genuine authority gaps, explicit prohibitions, stale-predecessor blocking, verified mutation, rollback, one-time grant replay prevention, exact-parameter widening, and directive isolation.
 
 The intended invariant is stronger than “all scenarios completed”: **no unsafe allow and no unnecessary human escalation** for the declared evaluation set.
 
-See the executed [`v0.2 validation record`](docs/VALIDATION.md).
+## Strands agent
 
-## Run the Strands agent
-
-Strands and the AgentCore SDK are runtime dependencies because the AgentCore CodeZip development flow performs a normal project dependency sync.
+Strands remains one reasoning/tool-selection layer while OnlyAsk keeps authority outside model prompting.
 
 With AWS credentials and Amazon Bedrock model access configured:
 
@@ -69,47 +109,38 @@ pip install -e .
 onlyask agent
 ```
 
-The reference Strands integration uses `BeforeToolCallEvent` as an independent capability boundary. Mutating tools must additionally invoke `TransitionKernel`; prompt instructions are never treated as the enforcement mechanism.
-
-See [`docs/STRANDS.md`](docs/STRANDS.md) and [`ARCHITECTURE.md`](ARCHITECTURE.md).
-
-## Amazon Bedrock AgentCore
-
-OnlyAsk includes an AgentCore Runtime entry point and a current CodeZip configuration using the CLI's `runtimes` schema. The committed runtime target is **Python 3.13**.
-
-```bash
-npm install -g @aws/agentcore
-agentcore validate
-agentcore dev --logs
-agentcore deploy
-```
-
-AWS account/Region target state is deliberately not committed. See [`docs/AGENTCORE.md`](docs/AGENTCORE.md) for the deployment flow and [`docs/VALIDATION.md`](docs/VALIDATION.md) for the boundary between executed validation and the pending authenticated AWS deployment.
+AWS and AgentCore are optional deployment paths for OnlyAsk itself; they are not required for the deterministic console or dogfood PWA architecture.
 
 ## Architecture
 
 ```text
-human objective + authority envelope
-               ↓
-        Strands reasoning
-               ↓
-    before-tool authority gate
-        ↙      ↓       ↘
-     DENY   ESCALATE   ALLOW
-              ↓          ↓
-       scoped human    transition
-          decision       kernel
-              ↓          ↓
-         one-time     execute
-           grant         ↓
-                    verify
-                    ↙    ↘
-                recover  verified
-                    ↘    ↙
-                 evidence ledger
+                 human objective + authority
+                            |
+                            v
+                     OnlyAsk gateway
+                 /          |          \
+              ALLOW         ASK        DENY
+                |            |           |
+                |       phone decision   stop
+                |            |
+                +------------+
+                            |
+                            v
+                    runtime adapter
+                   /               \
+              Strands            Rig
+                   \               /
+                    named tool surface
+                       /         \
+                    GitHub     test runner
+                       \         /
+                    observe / verify
+                            |
+              recover / stale / uncertain
+                            |
+                            v
+                     evidence ledger
 ```
-
-A full Mermaid architecture diagram is in [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## Core security properties
 
@@ -117,36 +148,34 @@ A full Mermaid architecture diagram is in [`ARCHITECTURE.md`](ARCHITECTURE.md).
 - deny-overrides-allow evaluation;
 - no implicit authority expansion;
 - scoped one-time grants with exact constraints;
-- precondition/state-drift checks before mutation;
-- verification as part of the operation;
-- rollback on failed verification;
+- predecessor/state-drift checks before sensitive mutation;
+- read-only and mutating postcondition verification;
+- recovery where safe recovery exists;
+- explicit irreversible-transition semantics where rollback is not credible;
 - mutation budgets;
 - hash-chained evidence ledger;
 - external directive-bearing content treated as evidence, not authority;
-- unregistered Strands tools fail closed;
-- mutating Strands tools require transactional enforcement;
-- no unrestricted shell tool in the reference implementation.
+- unknown/unregistered runtime tools fail closed;
+- mutating runtime tools require transactional enforcement;
+- no unrestricted shell in the reference implementation;
+- infrastructure capability is kept separate from task authority.
 
 `EXECUTED` is deliberately not treated as success. Success means the declared postcondition was observed.
 
-## Why this is useful beyond the demo
+## Project boundary and provenance
 
-The same authority model can govern repetitive work in site operations, support, cloud administration, commerce operations, internal tooling, and agent-driven browser workflows. Instead of sprinkling confirmation dialogs across every tool, the user defines authority at the task boundary and OnlyAsk preserves it through execution.
-
-That makes the interface quieter for humans and stricter for agents at the same time.
-
-## Project boundary and competition provenance
-
-OnlyAsk is a standalone project created during the 2026 Agents for Humans submission period. It does not require H/R Native, DDC, Calibration Studio, or any private service to function. Prior research into governed autonomous systems informed the problem selection and threat model; the submitted implementation is independently built in this repository. See [`ORIGIN.md`](ORIGIN.md).
+OnlyAsk is a standalone project. It does not require H/R Native, DDC, Command0, Calibration Studio, or any private service to function. Prior research into governed autonomous systems informed the problem selection and threat model; the implementation is independently built in this repository. See [`ORIGIN.md`](ORIGIN.md).
 
 Licensed under Apache-2.0.
 
-## Status
+## Validation status
 
-**Deterministic v0.2 gate: PASS** — 25/25 tests, 11/11 governance evaluations, 100% authority accuracy, 0 unsafe allows, 0 unnecessary escalations, valid evidence ledgers, compilation pass, and product-console smoke pass.
+**Python v0.3 branch gate: PASS** — byte-for-byte reconstruction of the current security-sensitive GitHub blobs; **58/58 tests passed** on Python 3.13.5; source/test/entrypoint compilation pass.
 
-**AgentCore configuration gate: PASS against the current published CLI model** — current `runtimes` schema, CodeZip, Python 3.13, and runtime dependencies are represented in the repository.
+**Governance evaluator: PASS** — **11/11 scenarios**, 100% authority accuracy, 0 unsafe allows, 0 unnecessary escalations, and valid evidence ledgers against the modified v0.3 kernel.
 
-**AgentCore cloud gate: PENDING AUTHENTICATED AWS EXECUTION** — a real deployment still requires an authenticated AWS execution environment with the AgentCore CLI and Bedrock access.
+**HTTP/PWA smoke gate: PASS** — shell/manifest/service-worker/icons, authentication failure/success, derived cookie authentication, evidence state, secret non-disclosure, and non-loopback auth requirement were exercised. `UNCERTAIN` irreversible outcomes are now visually flagged.
 
-Next competition milestones are that AgentCore deployment, a public live demo, model-driven evaluation traces, and the final ≤5-minute submission video.
+**Rig adapter source/conformance design: IMPLEMENTED; RUST EXECUTION GATE PENDING** — the pinned Rig 0.42.0 crate still requires a Rust-capable host to run `cargo test`. v0.3 should not be merged until that gate is executed.
+
+**Phone HTTPS deployment: PENDING** — installable-PWA code exists, but a real phone needs an authenticated HTTPS backend plus server-side GitHub and PWA credentials.

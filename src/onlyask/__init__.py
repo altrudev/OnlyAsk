@@ -1,6 +1,7 @@
 """OnlyAsk: governed autonomous operations."""
 
 from .authority import AuthorityEngine
+from .dogfood import DogfoodProject, DogfoodSession
 from .kernel import TransitionKernel
 from .models import (
     Action,
@@ -20,6 +21,8 @@ __all__ = [
     "AuthorityEnvelope",
     "Decision",
     "DecisionKind",
+    "DogfoodProject",
+    "DogfoodSession",
     "Grant",
     "OnlyAskProductSession",
     "Permission",
@@ -28,4 +31,4 @@ __all__ = [
     "TransitionState",
 ]
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"

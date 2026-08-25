@@ -26,6 +26,7 @@ class TransitionKernel:
                 "operation": action.operation,
                 "purpose": action.purpose,
                 "mutating": action.mutating,
+                "irreversible": action.irreversible,
             },
         )
 
@@ -80,6 +81,21 @@ class TransitionKernel:
             output = action.execute()
         except Exception as exc:
             self.ledger.append(transition_id, "execution_failed", {"error": type(exc).__name__})
+            if action.irreversible:
+                self.ledger.append(
+                    transition_id,
+                    "irreversible_outcome_uncertain",
+                    {"phase": "execution", "error": type(exc).__name__},
+                )
+                return TransitionResult(
+                    TransitionState.UNCERTAIN,
+                    decision,
+                    transition_id=transition_id,
+                    message=(
+                        "Irreversible execution did not return a reliable outcome; "
+                        "manual reconciliation is required."
+                    ),
+                )
             return TransitionResult(
                 TransitionState.FAILED,
                 decision,
@@ -92,14 +108,39 @@ class TransitionKernel:
             self.authority.consume_grant(self.envelope, decision)
 
         if not action.mutating:
-            self.ledger.append(transition_id, "verified", {"mode": "non_mutating"})
+            if action.verify is None:
+                self.ledger.append(transition_id, "verified", {"mode": "non_mutating"})
+                return TransitionResult(
+                    TransitionState.VERIFIED,
+                    decision,
+                    output=output,
+                    verification_passed=True,
+                    transition_id=transition_id,
+                    message="Non-mutating action completed.",
+                )
+            self.ledger.append(transition_id, "verifying", {"mode": "non_mutating"})
+            try:
+                verification_passed = bool(action.verify(output))
+            except Exception:
+                verification_passed = False
+            if verification_passed:
+                self.ledger.append(transition_id, "verified", {"mode": "non_mutating"})
+                return TransitionResult(
+                    TransitionState.VERIFIED,
+                    decision,
+                    output=output,
+                    verification_passed=True,
+                    transition_id=transition_id,
+                    message="Non-mutating postcondition verified.",
+                )
+            self.ledger.append(transition_id, "verification_failed", {"mode": "non_mutating"})
             return TransitionResult(
-                TransitionState.VERIFIED,
+                TransitionState.FAILED,
                 decision,
                 output=output,
-                verification_passed=True,
+                verification_passed=False,
                 transition_id=transition_id,
-                message="Non-mutating action completed.",
+                message="Non-mutating action completed but its postcondition failed.",
             )
 
         assert action.verify is not None
@@ -121,6 +162,24 @@ class TransitionKernel:
             )
 
         self.ledger.append(transition_id, "verification_failed", {})
+        if action.irreversible:
+            self.ledger.append(
+                transition_id,
+                "irreversible_outcome_uncertain",
+                {"phase": "verification"},
+            )
+            return TransitionResult(
+                TransitionState.UNCERTAIN,
+                decision,
+                output=output,
+                verification_passed=False,
+                transition_id=transition_id,
+                message=(
+                    "Irreversible action returned but its postcondition could not be verified; "
+                    "manual reconciliation is required."
+                ),
+            )
+
         assert action.recover is not None
         self.ledger.append(transition_id, "recovering", {})
         try:
