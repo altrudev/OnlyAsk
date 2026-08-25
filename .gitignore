@@ -8,6 +8,7 @@ build/
 *.egg-info/
 .env
 .DS_Store
+uv.lock
 agentcore/.env.local
 agentcore/.cli/
 agentcore/aws-targets.json
