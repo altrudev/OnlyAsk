@@ -43,12 +43,14 @@ For mutating tools, the hook is the first execution boundary, not the whole tran
 
 ## Product agent
 
-The competition product agent is built by `onlyask.strands_product.build_site_agent()` and can be invoked from the CLI:
+Strands is a normal OnlyAsk runtime dependency because the same project is packaged for AgentCore CodeZip deployment. Install the project and invoke the product agent with:
 
 ```bash
-pip install -e '.[strands]'
+pip install -e .
 onlyask agent
 ```
+
+The model-driven path requires a configured Strands model provider; the default competition path uses Amazon Bedrock.
 
 The reference scenario exposes deliberately narrow tools for homepage inspection/repair, a commercial-change request, external-content inspection, and a DNS-change attempt. No generic shell or arbitrary writer is registered.
 
