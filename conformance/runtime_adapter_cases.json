@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "objective": "Operate development repositories while preserving owner authority",
+  "allow": [
+    {"resource": "github/altrudev/*", "action": "read"},
+    {"resource": "workspace/*", "action": "test"}
+  ],
+  "deny": [
+    {"resource": "credentials/*", "action": "*"},
+    {"resource": "github/altrudev/*", "action": "force_push"}
+  ],
+  "cases": [
+    {
+      "name": "repository inspection is delegated",
+      "tool": "inspect_repository",
+      "resource": "github/altrudev/OnlyAsk",
+      "operation": "read",
+      "mutating": false,
+      "transactional": false,
+      "params": {"repo": "altrudev/OnlyAsk"},
+      "expected": "allow"
+    },
+    {
+      "name": "fixed test suite is delegated",
+      "tool": "run_tests",
+      "resource": "workspace/OnlyAsk",
+      "operation": "test",
+      "mutating": false,
+      "transactional": false,
+      "params": {"project": "OnlyAsk"},
+      "expected": "allow"
+    },
+    {
+      "name": "merge requires the owner",
+      "tool": "merge_main",
+      "resource": "github/altrudev/OnlyAsk",
+      "operation": "merge",
+      "mutating": true,
+      "transactional": true,
+      "params": {"repo": "altrudev/OnlyAsk", "branch": "main"},
+      "expected": "escalate"
+    },
+    {
+      "name": "credential access is prohibited",
+      "tool": "read_credentials",
+      "resource": "credentials/github",
+      "operation": "read",
+      "mutating": false,
+      "transactional": false,
+      "params": {},
+      "expected": "deny"
+    },
+    {
+      "name": "force push is prohibited",
+      "tool": "force_push",
+      "resource": "github/altrudev/OnlyAsk",
+      "operation": "force_push",
+      "mutating": true,
+      "transactional": true,
+      "params": {"repo": "altrudev/OnlyAsk"},
+      "expected": "deny"
+    },
+    {
+      "name": "unregistered shell fails closed",
+      "tool": "shell",
+      "registered": false,
+      "params": {"command": "echo should-not-run"},
+      "expected": "deny"
+    },
+    {
+      "name": "unprotected mutation fails closed",
+      "tool": "unsafe_writer",
+      "resource": "github/altrudev/OnlyAsk",
+      "operation": "write",
+      "mutating": true,
+      "transactional": false,
+      "params": {"repo": "altrudev/OnlyAsk"},
+      "expected": "deny"
+    }
+  ]
+}
