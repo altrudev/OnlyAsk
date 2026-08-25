@@ -30,8 +30,8 @@ def build_site_agent(session: OnlyAskProductSession | None = None, model: Any = 
 
     try:
         from strands import Agent, tool
-    except ImportError as exc:  # pragma: no cover - optional dependency
-        raise RuntimeError("Install OnlyAsk with the 'strands' extra") from exc
+    except ImportError as exc:  # pragma: no cover - environment-dependent
+        raise RuntimeError("OnlyAsk runtime dependencies are not installed; install the project dependencies.") from exc
 
     session = session or OnlyAskProductSession()
 
