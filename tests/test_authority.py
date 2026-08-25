@@ -49,3 +49,69 @@ def test_mutation_without_verification_fails_closed():
         recover=lambda _: True,
     )
     assert AuthorityEngine().evaluate(envelope, action).kind is DecisionKind.DENY
+
+
+def test_irreversible_mutation_never_inherits_broad_delegated_allow():
+    envelope = AuthorityEnvelope(objective="test", allow=[Permission("github/*", "merge")])
+    action = Action(
+        resource="github/altrudev/OnlyAsk/pull/7",
+        operation="merge",
+        purpose="merge",
+        parameters={"head_sha": "abc123"},
+        irreversible=True,
+        verify=lambda _: True,
+    )
+
+    decision = AuthorityEngine().evaluate(envelope, action)
+
+    assert decision.kind is DecisionKind.ESCALATE
+    assert decision.authority_basis == "constraint:irreversible_requires_scoped_grant"
+
+
+def test_irreversible_mutation_accepts_exact_scoped_grant_without_fake_recovery():
+    action = Action(
+        resource="github/altrudev/OnlyAsk/pull/7",
+        operation="merge",
+        purpose="merge",
+        parameters={"head_sha": "abc123"},
+        irreversible=True,
+        verify=lambda _: True,
+    )
+    envelope = AuthorityEnvelope(
+        objective="test",
+        grants=[
+            Grant(
+                Permission(action.resource, action.operation),
+                exact_constraints={"head_sha": "abc123"},
+            )
+        ],
+    )
+
+    decision = AuthorityEngine().evaluate(envelope, action)
+
+    assert decision.kind is DecisionKind.ALLOW
+    assert decision.authority_basis == "scoped_grant"
+
+
+def test_irreversible_exact_grant_does_not_allow_parameter_widening():
+    envelope = AuthorityEnvelope(
+        objective="test",
+        grants=[
+            Grant(
+                Permission("github/altrudev/OnlyAsk/pull/7", "merge"),
+                exact_constraints={"head_sha": "approved"},
+            )
+        ],
+    )
+    action = Action(
+        resource="github/altrudev/OnlyAsk/pull/7",
+        operation="merge",
+        purpose="merge",
+        parameters={"head_sha": "different"},
+        irreversible=True,
+        verify=lambda _: True,
+    )
+
+    decision = AuthorityEngine().evaluate(envelope, action)
+
+    assert decision.kind is DecisionKind.ESCALATE
