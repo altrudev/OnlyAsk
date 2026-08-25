@@ -56,6 +56,19 @@ The reference Strands integration uses `BeforeToolCallEvent` as an independent c
 
 See [`docs/STRANDS.md`](docs/STRANDS.md) and [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
+## Amazon Bedrock AgentCore
+
+OnlyAsk now includes an AgentCore Runtime entry point and CodeZip configuration. The committed runtime target is **Python 3.13**, avoiding the Python 3.10/3.11 direct-code runtime update cutoff that lands before the hackathon submission deadline.
+
+```bash
+pip install -e '.[agentcore]'
+npm install -g @aws/agentcore
+agentcore dev --no-browser --logs
+agentcore deploy
+```
+
+AWS account/Region target state is deliberately not committed. See [`docs/AGENTCORE.md`](docs/AGENTCORE.md) for the current deployment flow.
+
 ## Architecture
 
 ```text
@@ -113,6 +126,6 @@ Licensed under Apache-2.0.
 
 ## Status
 
-**v0.2 product branch:** interactive governed-operations console + deterministic storefront scenario + Strands website-operations agent.
+**v0.2 product branch:** interactive governed-operations console + deterministic storefront scenario + Strands website-operations agent + AgentCore deployment entry point.
 
-Next competition milestones are AWS AgentCore deployment, a public live demo, evaluation traces, and the final ≤5-minute submission video.
+Next competition milestones are a deployed AgentCore runtime, public live demo, evaluation traces, and the final ≤5-minute submission video.
