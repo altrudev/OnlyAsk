@@ -147,6 +147,6 @@ Licensed under Apache-2.0.
 
 **AgentCore configuration gate: PASS against the current published CLI model** — current `runtimes` schema, CodeZip, Python 3.13, and runtime dependencies are represented in the repository.
 
-**AgentCore cloud gate: PENDING** — a real deployment still requires an authenticated AWS execution environment with the AgentCore CLI and Bedrock access.
+**AgentCore cloud gate: PENDING AUTHENTICATED AWS EXECUTION** — a real deployment still requires an authenticated AWS execution environment with the AgentCore CLI and Bedrock access.
 
 Next competition milestones are that AgentCore deployment, a public live demo, model-driven evaluation traces, and the final ≤5-minute submission video.
