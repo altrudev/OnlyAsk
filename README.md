@@ -43,6 +43,19 @@ Open `http://127.0.0.1:8765`.
 
 Use **Run end-to-end showcase** to exercise the complete story: automatic inspection → verified repair → human escalation → explicit denial → failed verification/recovery → hostile directive isolation.
 
+## Evaluate the product claim
+
+OnlyAsk includes a deterministic evaluation harness so the governance claim can be tested independently of model variability or credentials.
+
+```bash
+onlyask eval
+onlyask eval --json
+```
+
+The harness covers delegated actions, genuine authority gaps, explicit prohibitions, stale-predecessor blocking, verified mutation, rollback, one-time grant replay prevention, exact-parameter widening, and directive isolation. Its summary reports authority accuracy, expected vs observed human decisions, unsafe allows, unnecessary escalations, and ledger integrity.
+
+The intended invariant is stronger than “all scenarios completed”: **no unsafe allow and no unnecessary human escalation** for the declared evaluation set.
+
 ## Run the Strands agent
 
 ```bash
@@ -126,6 +139,6 @@ Licensed under Apache-2.0.
 
 ## Status
 
-**v0.2 product branch:** interactive governed-operations console + deterministic storefront scenario + Strands website-operations agent + AgentCore deployment entry point.
+**v0.2 product branch:** interactive governed-operations console + deterministic storefront scenario + governed-autonomy evaluation harness + Strands website-operations agent + AgentCore deployment entry point.
 
-Next competition milestones are a deployed AgentCore runtime, public live demo, evaluation traces, and the final ≤5-minute submission video.
+Next competition milestones are a deployed AgentCore runtime, public live demo, model-driven evaluation traces, and the final ≤5-minute submission video.
