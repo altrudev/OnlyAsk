@@ -200,7 +200,7 @@ def test_reject_records_human_decision():
     assert s.kernel.ledger.entries[-1].event == "human_rejected"
 
 
-def test_safe_runner_binds_tests_to_git_head_and_does_not_inherit_backend_secrets(monkeypatch, tmp_path: Path):
+def test_safe_runner_binds_clean_canonical_checkout_and_does_not_inherit_backend_secrets(monkeypatch, tmp_path: Path):
     (tmp_path / "pyproject.toml").write_text("[project]\nname='x'\nversion='0.0.1'\n")
     monkeypatch.setenv("ONLYASK_GITHUB_TOKEN", "github-secret")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "aws-secret")
@@ -208,25 +208,88 @@ def test_safe_runner_binds_tests_to_git_head_and_does_not_inherit_backend_secret
     seen = []
 
     class Done:
-        def __init__(self, returncode, stdout, stderr=""):
+        def __init__(self, returncode=0, stdout="", stderr=""):
             self.returncode = returncode
             self.stdout = stdout
             self.stderr = stderr
 
     def fake_run(command, **kwargs):
         seen.append({"command": command, **kwargs})
+        if command == ["git", "remote", "get-url", "origin"]:
+            return Done(stdout="git@github.com:altrudev/OnlyAsk.git\n")
+        if command == ["git", "status", "--porcelain=v1"]:
+            return Done(stdout="")
         if command == ["git", "rev-parse", "HEAD"]:
-            return Done(0, "abc1234def5678\n")
-        return Done(0, "ok")
+            return Done(stdout="abc1234def5678\n")
+        return Done(stdout="ok")
 
     monkeypatch.setattr("onlyask.dogfood.subprocess.run", fake_run)
-    project = DogfoodProject("X", "a/b", local_path=str(tmp_path))
+    project = DogfoodProject("OnlyAsk", "altrudev/OnlyAsk", local_path=str(tmp_path))
     result = SafeTestRunner().run(project)
     assert result["ok"] is True
     assert result["tested_sha"] == "abc1234def5678"
-    assert seen[0]["command"] == ["git", "rev-parse", "HEAD"]
-    assert seen[1]["command"][1:] == ["-m", "pytest", "-q"]
+    assert result["origin_repo"] == "altrudev/OnlyAsk"
+    assert result["working_tree_clean"] is True
+    assert [call["command"] for call in seen[:3]] == [
+        ["git", "remote", "get-url", "origin"],
+        ["git", "status", "--porcelain=v1"],
+        ["git", "rev-parse", "HEAD"],
+    ]
+    assert seen[3]["command"][1:] == ["-m", "pytest", "-q"]
     assert all(call.get("shell") is None for call in seen)
     assert all("ONLYASK_GITHUB_TOKEN" not in call["env"] for call in seen)
     assert all("AWS_SECRET_ACCESS_KEY" not in call["env"] for call in seen)
     assert all("OPENAI_API_KEY" not in call["env"] for call in seen)
+
+
+def test_safe_runner_rejects_dirty_checkout(monkeypatch, tmp_path: Path):
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='x'\nversion='0.0.1'\n")
+
+    class Done:
+        def __init__(self, stdout="", returncode=0):
+            self.stdout = stdout
+            self.stderr = ""
+            self.returncode = returncode
+
+    def fake_run(command, **kwargs):
+        if command == ["git", "remote", "get-url", "origin"]:
+            return Done("https://github.com/altrudev/OnlyAsk.git\n")
+        if command == ["git", "status", "--porcelain=v1"]:
+            return Done(" M src/onlyask/kernel.py\n?? injected.py\n")
+        raise AssertionError("pytest or HEAD must not run for a dirty checkout")
+
+    monkeypatch.setattr("onlyask.dogfood.subprocess.run", fake_run)
+    result = SafeTestRunner().run(
+        DogfoodProject("OnlyAsk", "altrudev/OnlyAsk", local_path=str(tmp_path))
+    )
+    assert result["ok"] is False
+    assert result["tested_sha"] == ""
+    assert "clean" in result["message"]
+
+
+def test_safe_runner_rejects_checkout_from_wrong_origin(monkeypatch, tmp_path: Path):
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='x'\nversion='0.0.1'\n")
+
+    class Done:
+        returncode = 0
+        stdout = "https://github.com/attacker/OnlyAsk.git\n"
+        stderr = ""
+
+    def fake_run(command, **kwargs):
+        assert command == ["git", "remote", "get-url", "origin"]
+        return Done()
+
+    monkeypatch.setattr("onlyask.dogfood.subprocess.run", fake_run)
+    result = SafeTestRunner().run(
+        DogfoodProject("OnlyAsk", "altrudev/OnlyAsk", local_path=str(tmp_path))
+    )
+    assert result["ok"] is False
+    assert result["tested_sha"] == ""
+    assert "origin" in result["message"]
+
+
+def test_origin_parser_accepts_only_canonical_github_remote_shapes():
+    assert SafeTestRunner._origin_repo("https://github.com/altrudev/OnlyAsk.git") == "altrudev/OnlyAsk"
+    assert SafeTestRunner._origin_repo("git@github.com:altrudev/OnlyAsk.git") == "altrudev/OnlyAsk"
+    assert SafeTestRunner._origin_repo("ssh://git@github.com/altrudev/OnlyAsk.git") == "altrudev/OnlyAsk"
+    assert SafeTestRunner._origin_repo("https://evil.example/altrudev/OnlyAsk.git") is None
