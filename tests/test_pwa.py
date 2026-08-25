@@ -13,8 +13,8 @@ def test_generated_icons_are_png():
     assert _png_icon(512).startswith(b"\x89PNG\r\n\x1a\n")
 
 
-def test_pwa_auth_accepts_one_time_login_and_derived_cookie():
-    app = DogfoodPWA(auth_token="secret")
+def test_pwa_auth_uses_bearer_token():
+    app=DogfoodPWA(auth_token="secret")
     assert app.login("wrong") is False
     assert app.login("secret") is True
     assert app.authorized(None) is False
