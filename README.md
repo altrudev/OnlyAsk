@@ -2,79 +2,117 @@
 
 **Governed Autonomous Operations**
 
-OnlyAsk is an autonomous operations agent architecture built around one rule:
+OnlyAsk is an autonomous operations agent built around one rule:
 
 > An agent may act only inside authority already granted to it. It asks the human only when the next meaningful decision actually belongs to the human.
 
-OnlyAsk separates **reasoning** from **authority**. A model may investigate, propose, and explain. A deterministic transition kernel decides whether a proposed operation is allowed, must be escalated, or is prohibited. Mutations are verified against explicit postconditions and recover when verification fails.
+Most agent systems force a bad choice: supervise every step or grant broad permissions. OnlyAsk implements a third model — **bounded autonomy**.
 
-## Why this exists
+Strands Agents handles reasoning and tool selection. A deterministic transition kernel independently decides whether a proposed operation is allowed, must be escalated, or is prohibited. Mutations are bound to observed predecessor state, verified after execution, and recovered when verification fails.
 
-Most autonomous-agent systems force an uncomfortable choice: supervise every step or grant broad permissions. OnlyAsk implements a third model: bounded autonomy.
+## The product
 
-A task begins with an explicit authority envelope. Every external action is evaluated against that envelope before execution. Low risk never substitutes for permission, and a model cannot silently expand its own authority.
+The v0.2 judge demo is a governed website-operations console. Give the agent a goal such as keeping a storefront healthy and define the authority boundary once.
 
-## Core transition
+OnlyAsk can then:
 
-```text
-objective
-   ↓
-authority envelope
-   ↓
-proposed action
-   ↓
-ALLOW / ESCALATE / DENY
-   ↓
-snapshot
-   ↓
-execute
-   ↓
-verify
-   ↓
-VERIFIED / RECOVERED / RECOVERY_FAILED
-   ↓
-evidence ledger
-```
+- inspect the site without interrupting the human;
+- repair an already-authorized broken link and verify the result;
+- surface a price change as a narrow human decision instead of requesting blanket access;
+- convert approval into a one-use, exact-value grant;
+- hard-deny prohibited DNS or credential actions without bothering the human;
+- roll back a mutation that fails its postcondition;
+- isolate prompt-injection-style page instructions as untrusted evidence;
+- expose the observable decision path through a hash-chained evidence ledger.
 
-`EXECUTED` is not treated as success. Success means the declared postcondition was observed.
+The point is not “AI that asks permission.” The point is **AI that knows when permission already exists, when it does not, and when an action should never be available at all**.
 
-## Quick start
+## Run the interactive console
+
+No model credentials are required for the deterministic judge scenario.
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -e '.[dev]'
 pytest
-onlyask demo
+onlyask web
 ```
 
-The deterministic demo requires no model credentials.
+Open `http://127.0.0.1:8765`.
 
-For the Strands adapter:
+Use **Run end-to-end showcase** to exercise the complete story: automatic inspection → verified repair → human escalation → explicit denial → failed verification/recovery → hostile directive isolation.
+
+## Run the Strands agent
 
 ```bash
 pip install -e '.[strands]'
+onlyask agent
 ```
 
-See `docs/STRANDS.md`.
+Strands uses Amazon Bedrock by default, so configure AWS credentials with Bedrock model access before running the model-driven path. The agent can also be constructed with another Strands-supported model provider.
 
-## Security properties in v0.1
+The reference Strands integration uses `BeforeToolCallEvent` as an independent capability boundary. Mutating tools must additionally invoke `TransitionKernel`; prompt instructions are never treated as the enforcement mechanism.
 
-- explicit resource/action authority
-- deny-overrides-allow evaluation
-- no implicit authority expansion
-- scoped one-time grants
-- precondition/state-drift checks before mutation
-- verification as part of the operation
-- rollback on failed verification
-- append-only in-memory evidence ledger with hash chaining
-- external directive-bearing content treated as evidence, not authority
-- no unrestricted shell tool in the reference implementation
+See [`docs/STRANDS.md`](docs/STRANDS.md) and [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
-## Project boundary
+## Architecture
 
-OnlyAsk is a standalone project. It does not require H/R Native, DDC, Calibration Studio, or any private service to function. Prior research into governed autonomous systems informed the problem selection and threat model; this repository is independently implemented and licensed under Apache-2.0. See `ORIGIN.md`.
+```text
+human objective + authority envelope
+               ↓
+        Strands reasoning
+               ↓
+    before-tool authority gate
+        ↙      ↓       ↘
+     DENY   ESCALATE   ALLOW
+              ↓          ↓
+       scoped human    transition
+          decision       kernel
+              ↓          ↓
+         one-time     execute
+           grant         ↓
+                    verify
+                    ↙    ↘
+                recover  verified
+                    ↘    ↙
+                 evidence ledger
+```
+
+A full Mermaid architecture diagram is in [`ARCHITECTURE.md`](ARCHITECTURE.md).
+
+## Core security properties
+
+- explicit resource/action authority;
+- deny-overrides-allow evaluation;
+- no implicit authority expansion;
+- scoped one-time grants with exact constraints;
+- precondition/state-drift checks before mutation;
+- verification as part of the operation;
+- rollback on failed verification;
+- mutation budgets;
+- hash-chained evidence ledger;
+- external directive-bearing content treated as evidence, not authority;
+- unregistered Strands tools fail closed;
+- mutating Strands tools require transactional enforcement;
+- no unrestricted shell tool in the reference implementation.
+
+`EXECUTED` is deliberately not treated as success. Success means the declared postcondition was observed.
+
+## Why this is useful beyond the demo
+
+The same authority model can govern repetitive work in site operations, support, cloud administration, commerce operations, internal tooling, and agent-driven browser workflows. Instead of sprinkling confirmation dialogs across every tool, the user defines authority at the task boundary and OnlyAsk preserves it through execution.
+
+That makes the interface quieter for humans and stricter for agents at the same time.
+
+## Project boundary and competition provenance
+
+OnlyAsk is a standalone project created during the 2026 Agents for Humans submission period. It does not require H/R Native, DDC, Calibration Studio, or any private service to function. Prior research into governed autonomous systems informed the problem selection and threat model; the submitted implementation is independently built in this repository. See [`ORIGIN.md`](ORIGIN.md).
+
+Licensed under Apache-2.0.
 
 ## Status
 
-v0.1 is the transition kernel and reference demo. The next product layer is a website-repair agent using Strands tools and AWS AgentCore-compatible deployment.
+**v0.2 product branch:** interactive governed-operations console + deterministic storefront scenario + Strands website-operations agent.
+
+Next competition milestones are AWS AgentCore deployment, a public live demo, evaluation traces, and the final ≤5-minute submission video.
