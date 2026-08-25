@@ -35,9 +35,17 @@ class StrandsAuthorityHook:
                 params = {}
 
             result = self.gate.decide(name, dict(params))
-            if result.decision.kind is not DecisionKind.ALLOW:
+            decision = result.decision
+            if decision.kind is DecisionKind.ALLOW:
+                return
+            if decision.authority_basis == "runtime:unregistered_tool":
+                event.cancel_tool = f"OnlyAsk denied unregistered tool: {name}"
+                return
+            if decision.authority_basis == "runtime:transaction_required":
                 event.cancel_tool = (
-                    f"OnlyAsk {result.decision.kind.value}: {result.decision.reason}"
+                    f"OnlyAsk denied mutating tool without transactional enforcement: {name}"
                 )
+                return
+            event.cancel_tool = f"OnlyAsk {decision.kind.value}: {decision.reason}"
 
         agent.add_hook(enforce, BeforeToolCallEvent)
